@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-11-21T04:34:24.004Z",
+  "timestamp": "2026-11-21T04:45:31.975Z",
   "total_cases": 15,
   "passed_eval": 15,
   "gate_accuracy_percent": 100,
@@ -124,7 +124,7 @@
       "Expected": "BLOCK",
       "Actual": "BLOCK",
       "Status": "PASS",
-      "Reason": "The DOM only provides standard username and password input fields..."
+      "Reason": "The DOM only contains standard username and password login inputs..."
     }
   ]
 }

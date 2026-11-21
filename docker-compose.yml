@@ -1,0 +1,14 @@
+services:
+  guardian-qa:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: guardian-qa:latest
+    container_name: guardian-qa-runner
+    env_file:
+      - e2e-tests/.env
+    environment:
+      - CI=true
+    volumes:
+      - ./e2e-tests/eval_report.json:/app/eval_report.json
+      - ./e2e-tests/healing_history.log:/app/healing_history.log

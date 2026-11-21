@@ -1,0 +1,27 @@
+{
+  "name": "guardian-qa-root",
+  "version": "1.0.0",
+  "description": "GuardianQA - Autonomous AI-Powered Self-Healing E2E Testing Framework",
+  "private": true,
+  "scripts": {
+    "setup": "npm --prefix e2e-tests install && npx --prefix e2e-tests playwright install chromium",
+    "setup:all": "npm run setup && pip install -r requirements.txt && playwright install chromium",
+    "test": "npm --prefix e2e-tests test",
+    "test:login": "npm --prefix e2e-tests run test:login",
+    "heal": "npm --prefix e2e-tests run heal",
+    "eval": "npm --prefix e2e-tests run eval",
+    "docker:build": "docker build -t guardian-qa .",
+    "docker:run": "docker run --rm --env-file e2e-tests/.env guardian-qa",
+    "docker:compose": "docker compose up --build"
+  },
+  "keywords": [
+    "playwright",
+    "testing",
+    "ai",
+    "self-healing",
+    "qa",
+    "gemini"
+  ],
+  "author": "",
+  "license": "ISC"
+}

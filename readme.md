@@ -19,22 +19,48 @@ Evaluated across **15 adversarial & functional scenarios** (5 Happy Path, 5 Fals
 | **DOM Hallucination Block Rate** | **100.0% (5/5)** |
 | **Mean Self-Healing Latency** | **~3.2s per broken locator** |
 
-## Quick Start
+## Quick Start (Easy Setup)
 
-### 1. Local Development
+### Option 1: Automated 1-Click Setup
+Run the setup script for your OS (automatically configures `.env`, installs Node.js packages, Playwright Chromium, Python requirements, and checks Docker):
+
+- **Windows:** Double-click `setup.bat` or run:
+  ```cmd
+  setup.bat
+  ```
+  *(or PowerShell: `.\setup.ps1`)*
+
+- **Linux / macOS:**
+  ```bash
+  chmod +x setup.sh && ./setup.sh
+  ```
+
+---
+
+### Option 2: Zero-Install with Docker Compose
+If you have Docker installed, you do not need Node.js or Python installed locally:
 ```bash
-cd e2e-tests
+# 1. Provide your key in e2e-tests/.env or .env.example
+docker compose up --build
+```
 
-# Install dependencies and Playwright browser
-npm install
-npx playwright install chromium
+---
 
-# Setup environment variable
-# Create a .env file with your GEMINI_API_KEY
-echo "GEMINI_API_KEY=your_gemini_api_key_here" > .env
+### Option 3: Manual Setup
+```bash
+# From repository root
+npm run setup
 
+# Install Python requirements (if using Python backend)
+pip install -r requirements.txt
+playwright install chromium
+```
+
+### Running GuardianQA Commands
+From either the repository root or inside `e2e-tests/`:
+```bash
 # Run baseline Playwright test
-npm run test:login
+npm test
 
 # Run Self-Healing on a broken test
 npm run heal
@@ -43,16 +69,16 @@ npm run heal
 npm run eval
 ```
 
-### 2. Run with Docker
+### Running with Docker CLI
 ```bash
-# Build Docker image from repo root
+# Build Docker image
 docker build -t guardian-qa:latest .
 
 # Run container with environment file
 docker run --rm --env-file e2e-tests/.env guardian-qa:latest
 
 # Or run with inline API Key
-docker run --rm -e GEMINI_API_KEY="AIzaSy..." guardian-qa:latest
+docker run --rm -e GEMINI_API_KEY="your_gemini_api_key" guardian-qa:latest
 ```
 
 ## GitHub Actions CI/CD Pipeline
