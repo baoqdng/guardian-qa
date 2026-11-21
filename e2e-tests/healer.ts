@@ -9,41 +9,41 @@ import { evaluateQualityGate } from './quality_gate';
 dotenv.config();
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// 1. Định nghĩa Schema bắt buộc AI trả về bản vá rõ ràng (tránh viết lan man)
+// 1. Define Structured Output Schema requiring explicit healing patch
 const healSchema: Schema = {
     type: Type.OBJECT,
     properties: {
         diagnosis: {
             type: Type.STRING,
-            description: 'Nguyên nhân gốc rễ khiến locator cũ bị lỗi.',
+            description: 'Root cause of why the locator failed.',
         },
         broken_locator: {
             type: Type.STRING,
-            description: 'Đoạn locator cũ bị lỗi trong code.',
+            description: 'Broken locator string in the existing code.',
         },
         healed_locator: {
             type: Type.STRING,
-            description: 'Đoạn locator mới khớp với DOM hiện tại (ưu tiên data-test, id, role).',
+            description: 'New locator matching the live DOM (prioritize data-test, id, role).',
         },
         fixed_code: {
             type: Type.STRING,
-            description: 'Toàn bộ nội dung file .spec.ts đã được sửa hoàn chỉnh.',
+            description: 'Full content of the corrected .spec.ts file.',
         },
     },
     required: ['diagnosis', 'broken_locator', 'healed_locator', 'fixed_code'],
 };
 
-// 2. Hàm chạy Playwright và lấy kết quả JSON
+// 2. Execute Playwright test and extract JSON report
 function runPlaywrightTest(specFile: string): { passed: boolean; errorLog: string } {
     try {
-        // Giảm timeout xuống 5000ms khi heal để không phải chờ 30s mặc định
+        // Lower timeout to 5000ms during healing to avoid waiting 30s default
         execSync(`npx playwright test ${specFile} --reporter=json --timeout=5000`, {
             encoding: 'utf-8',
             stdio: 'pipe',
         });
         return { passed: true, errorLog: '' };
     } catch (err: any) {
-        // Playwright trả về exit code != 0 khi fail, stdout vẫn chứa JSON report
+        // Playwright exits with code != 0 on failure; stdout contains JSON report
         const rawOutput = err.stdout || err.message;
         try {
             const report = JSON.parse(rawOutput);
@@ -55,7 +55,7 @@ function runPlaywrightTest(specFile: string): { passed: boolean; errorLog: strin
     }
 }
 
-// 3. Hàm cào DOM sạch (chỉ lấy thẻ tương tác để tiết kiệm token & chống nhiễu)
+// 3. Extract interactive DOM elements (only interactive tags to save tokens & prevent noise)
 async function getInteractiveDOM(url: string): Promise<string> {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
@@ -72,43 +72,43 @@ async function getInteractiveDOM(url: string): Promise<string> {
     return domSnapshot;
 }
 
-// 4. Vòng lặp Self-Healing chính
+// 4. Main Self-Healing Loop
 async function selfHealLoop(specFile: string, targetUrl: string, maxRetries = 2) {
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
-        console.log(`\n🚀 [Lần chạy ${attempt}] Đang kiểm thử: ${specFile}...`);
+        console.log(`\n[RUN] [Attempt ${attempt}] Testing: ${specFile}...`);
         const result = runPlaywrightTest(specFile);
 
         if (result.passed) {
-            console.log(`✅ TEST PASSED ở lần chạy thứ ${attempt}!`);
+            console.log(`[PASS] TEST PASSED on attempt ${attempt}!`);
             process.exit(0);
         }
 
         if (attempt > maxRetries) {
-            console.error(`❌ Đã đạt giới hạn ${maxRetries} lần tự chữa lành nhưng vẫn thất bại.`);
+            console.error(`[FAIL] Maximum healing retries reached (${maxRetries}), test still failing.`);
             process.exit(1);
         }
 
-        console.warn(`⚠️ Phát hiện lỗi Locator:\n${result.errorLog.split('\n')[0]}`);
-        console.log(`🔍 Đang quét lại DOM thực tế tại ${targetUrl}...`);
+        console.warn(`[WARN] Locator error detected:\n${result.errorLog.split('\n')[0]}`);
+        console.log(`[SCAN] Scanning live DOM at ${targetUrl}...`);
 
         const currentCode = fs.readFileSync(specFile, 'utf-8');
         const freshDom = await getInteractiveDOM(targetUrl);
 
         const prompt = `
-Bạn là chuyên gia Self-Healing Test Automation (Playwright TypeScript).
-Bài test bị lỗi do giao diện thay đổi (UI Drift). Hãy phân tích log lỗi, đối chiếu với DOM thực tế và sửa lại locator trong code.
+You are a Self-Healing Test Automation Specialist (Playwright TypeScript).
+The test failed due to UI Drift. Analyze the failure log, inspect the live DOM, and fix the broken locator in the code.
 
-QUY TẮC BẮT BUỘC:
-1. Chỉ sửa locator bị hỏng, GIỮ NGUYÊN toàn bộ logic kiểm thử và các câu lệnh expect() gốc.
-2. Không tự ý xóa assertion để ép test pass giả (False Pass).
+MANDATORY RULES:
+1. Only fix the broken locator. PRESERVE all original test logic and expect() assertions.
+2. Never delete assertions to force a false pass.
 
---- CODE HIỆN TẠI (${specFile}) ---
+--- CURRENT CODE (${specFile}) ---
 ${currentCode}
 
---- LOG LỖI PLAYWRIGHT ---
+--- PLAYWRIGHT FAILURE LOG ---
 ${result.errorLog}
 
---- DOM THỰC TẾ HIỆN TẠI ---
+--- CURRENT LIVE DOM ---
 ${freshDom}
 `;
 
@@ -118,15 +118,15 @@ ${freshDom}
         const cleanJson = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
         const patch = JSON.parse(cleanJson);
 
-        console.log(`\n🩺 [CHẨN ĐOÁN AI - ${modelUsed}]: ${patch.diagnosis}`);
-        console.log(`   - Cũ : ${patch.broken_locator}`);
-        console.log(`   + Mới: ${patch.healed_locator}`);
+        console.log(`\n[DIAGNOSIS - ${modelUsed}]: ${patch.diagnosis}`);
+        console.log(`   - Broken : ${patch.broken_locator}`);
+        console.log(`   + Healed : ${patch.healed_locator}`);
 
-        // Lưu file log diff để làm bằng chứng cho báo cáo / demo
+        // Save log diff for reporting and verification
         const diffLog = `[${new Date().toISOString()}] Model: ${modelUsed} | File: ${specFile}\nDiagnosis: ${patch.diagnosis}\n- ${patch.broken_locator}\n+ ${patch.healed_locator}\n-------------------\n`;
         fs.appendFileSync('healing_history.log', diffLog);
 
-        // ... bên trong selfHealLoop sau khi nhận `patch` từ Gemini:
+        // Quality Gate check on generated patch
         const gateCheck = evaluateQualityGate({
             newCode: patch.fixed_code,
             originalCode: currentCode,
@@ -134,21 +134,22 @@ ${freshDom}
         });
 
         if (!gateCheck.passed) {
-            console.error(`🛑 [AI QUALITY GATE BLOCKED] Bản vá bị từ chối vì vi phạm quy tắc chất lượng:`);
+            console.error(`[BLOCKED] [AI QUALITY GATE BLOCKED] Patch rejected due to quality gate violation:`);
             gateCheck.violations.forEach((v) => console.error(`   - ${v}`));
             process.exit(1);
         }
-        console.log(`🛡️ [AI QUALITY GATE PASSED] Đã xác thực ${gateCheck.metrics.newExpectCount} assertions & ${gateCheck.metrics.locatorsChecked} locators khớp DOM.`);
-        // Ghi đè code đã vá vào file test
+        console.log(`[PASSED] [AI QUALITY GATE PASSED] Verified ${gateCheck.metrics.newExpectCount} assertions & ${gateCheck.metrics.locatorsChecked} locators matching DOM.`);
+
+        // Overwrite test file with healed code
         fs.writeFileSync(specFile, patch.fixed_code, 'utf-8');
-        console.log(`💾 Đã cập nhật bản vá vào ${specFile}. Tiến hành chạy lại...`);
+        console.log(`[SAVED] Updated test patch in ${specFile}. Rerunning test...`);
     }
 }
 
-// Chạy thử nghiệm
+// Execute self-healing
 selfHealLoop('tests/broken_login.spec.ts', 'https://www.saucedemo.com/')
     .then(() => process.exit(0))
     .catch((err) => {
-        console.error('❌ Lỗi không xác định:', err);
+        console.error('[ERROR] Unhandled error:', err);
         process.exit(1);
     });

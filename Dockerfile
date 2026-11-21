@@ -1,17 +1,17 @@
-# Sử dụng image chính thức đã cài sẵn Chromium, Firefox, WebKit & Node.js
+# Official Playwright image with pre-installed Chromium, Firefox, WebKit & Node.js
 FROM mcr.microsoft.com/playwright:v1.65.1-noble
 
 WORKDIR /app
 
-# Copy file quản lý package từ e2e-tests trước để tận dụng Docker layer cache
+# Copy package management files first to leverage Docker layer cache
 COPY e2e-tests/package*.json ./
 RUN npm ci
 
-# Copy toàn bộ mã nguồn kiểm thử từ e2e-tests
+# Copy full test source code from e2e-tests
 COPY e2e-tests/ .
 
-# Biến môi trường mặc định (sẽ truyền GEMINI_API_KEY lúc chạy container)
+# Default environment variables (GEMINI_API_KEY passed at runtime)
 ENV CI=true
 
-# Mặc định chạy bộ đánh giá AI Quality Gate 15 kịch bản
+# Default command: run the 15-scenario AI Quality Gate evaluation suite
 CMD ["npx", "tsx", "eval_suite.ts"]

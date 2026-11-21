@@ -17,41 +17,41 @@ export function evaluateQualityGate(params: {
     const { newCode, originalCode, liveDomSnapshot } = params;
     const violations: string[] = [];
 
-    // 1. Đếm số lượng câu lệnh expect() để chặn xóa assertion (False Pass)
+    // 1. Count expect() statements to prevent assertion deletion (False Pass)
     const countExpects = (code: string) => (code.match(/\bexpect\s*\(/g) || []).length;
     const newExpectCount = countExpects(newCode);
     const originalExpectCount = originalCode ? countExpects(originalCode) : 1;
 
     if (newExpectCount === 0) {
-        violations.push('FALSE_PASS_RISK: Code không chứa bất kỳ câu lệnh expect() nào.');
+        violations.push('FALSE_PASS_RISK: Code does not contain any expect() assertions.');
     } else if (originalCode && newExpectCount < originalExpectCount) {
         violations.push(
-            `ASSERTION_DROPPED: Số lượng expect() giảm từ ${originalExpectCount} xuống ${newExpectCount}.`
+            `ASSERTION_DROPPED: Number of expect() statements decreased from ${originalExpectCount} to ${newExpectCount}.`
         );
     }
 
-    // 2. Chặn Assertion vô nghĩa (Tautology)
+    // 2. Block meaningless tautology assertions
     const tautologyPatterns = [
         /expect\s*\(\s*true\s*\)\s*\.toBe\s*\(\s*true\s*\)/,
         /expect\s*\(\s*1\s*\)\s*\.toBe\s*\(\s*1\s*\)/,
     ];
     for (const pattern of tautologyPatterns) {
         if (pattern.test(newCode)) {
-            violations.push('TAUTOLOGY_ASSERTION: Phát hiện expect(true).toBe(true) nhằm ép test pass giả.');
+            violations.push('TAUTOLOGY_ASSERTION: Detected trivial tautology assertion to force false pass.');
         }
     }
 
-    // 3. Chặn hành vi gian lận của Playwright (force: true để click xuyên element bị che)
+    // 3. Block bypass cheats ({ force: true } clicking through overlays)
     if (/force\s*:\s*true/.test(newCode)) {
-        violations.push('BYPASS_DETECTED: Sử dụng { force: true } bỏ qua kiểm tra khả năng tương tác UI.');
+        violations.push('BYPASS_DETECTED: Using { force: true } bypasses UI interactivity checks.');
     }
 
-    // 4. Kiểm tra Hallucination: Đối chiếu attribute locator ([data-test="..."], #id) với DOM thật
+    // 4. Check DOM Hallucination: Verify attributes ([data-test="..."], #id) against live DOM
     const hallucinatedLocators: string[] = [];
     let locatorsChecked = 0;
 
     if (liveDomSnapshot) {
-        // Trích xuất các selector dạng [data-test="..."] hoặc [id="..."]
+        // Extract selectors matching [data-test="..."], [id="..."], or [name="..."]
         const attrRegex = /\[(data-test|id|name)=["']([^"']+)["']\]/g;
         let match: RegExpExecArray | null;
 
@@ -68,7 +68,7 @@ export function evaluateQualityGate(params: {
 
         if (hallucinatedLocators.length > 0) {
             violations.push(
-                `DOM_HALLUCINATION: Locator không tồn tại trên DOM thật: ${hallucinatedLocators.join(', ')}`
+                `DOM_HALLUCINATION: Locator does not exist in live DOM: ${hallucinatedLocators.join(', ')}`
             );
         }
     }

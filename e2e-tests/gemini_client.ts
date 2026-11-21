@@ -11,13 +11,13 @@ export interface CallGeminiOptions {
     timeoutMs?: number;
 }
 
-// Ưu tiên gemini-3.5-flash và gemini-3.5-flash-lite (hạn mức ổn định), fallback sang gemini-3.8-flash
+// Prioritize gemini-3.5-flash and gemini-3.5-flash-lite (stable quotas), fallback to gemini-3.8-flash
 export const DEFAULT_MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash'];
 
 /**
- * Gọi API Gemini với cơ chế tự động Retry (Exponential Backoff),
- * Fallback sang model dự phòng khi gặp 503/429/Timeout,
- * và tự động chuyển model ngay lập tức nếu cạn Quota trong ngày (Daily Quota Exceeded).
+ * Calls Gemini API with automatic Retry (Exponential Backoff),
+ * Fallback to backup models on 503/429/Timeout,
+ * and immediate model transition when Daily Quota is exceeded.
  */
 export async function callGeminiWithRetry(
     ai: GoogleGenAI,
@@ -27,10 +27,10 @@ export async function callGeminiWithRetry(
 ) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey || apiKey === 'YOUR_KEY' || apiKey.trim() === '') {
-        console.error('\n❌ [LỖI API KEY]: Chưa truyền GEMINI_API_KEY hợp lệ (giá trị hiện tại: ' + (apiKey ? `"${apiKey}"` : 'undefined') + ').');
-        console.error('💡 Hướng dẫn chạy container với API Key:');
-        console.error('   👉 Cách 1 (Khuyên dùng): docker run --rm --env-file .env guardian-qa:latest');
-        console.error('   👉 Cách 2: docker run --rm -e GEMINI_API_KEY="AIzaSy..." guardian-qa:latest\n');
+        console.error('\n[ERROR] [API KEY ERROR]: Valid GEMINI_API_KEY was not provided (current value: ' + (apiKey ? `"${apiKey}"` : 'undefined') + ').');
+        console.error('[GUIDE] How to run container with API Key:');
+        console.error('   - Option 1 (Recommended): docker run --rm --env-file .env guardian-qa:latest');
+        console.error('   - Option 2: docker run --rm -e GEMINI_API_KEY="AIzaSy..." guardian-qa:latest\n');
         throw new Error('GEMINI_API_KEY is missing or invalid.');
     }
 
@@ -53,7 +53,7 @@ export async function callGeminiWithRetry(
             }, timeoutMs);
 
             try {
-                console.log(`🤖 [${modelName}] Đang gửi yêu cầu (lần thử ${attempt}/${maxRetries})...`);
+                console.log(`[AI] [${modelName}] Sending request (attempt ${attempt}/${maxRetries})...`);
 
                 const config: any = {
                     temperature: 0.1,
@@ -80,7 +80,7 @@ export async function callGeminiWithRetry(
                 const status = err.status || err.statusCode || (err.error && err.error.code);
                 const errMsg = err.message || '';
 
-                // Nếu là lỗi API Key không hợp lệ (400 API_KEY_INVALID), dừng ngay lập tức (không fallback vô ích)
+                // If API Key is invalid (400 API_KEY_INVALID), stop immediately (do not fallback pointlessly)
                 const isApiKeyInvalid =
                     status === 400 &&
                     (errMsg.includes('API key not valid') ||
@@ -89,15 +89,15 @@ export async function callGeminiWithRetry(
 
                 if (isApiKeyInvalid) {
                     console.error(
-                        `\n❌ [LỖI XÁC THỰC]: Google API từ chối API Key (API_KEY_INVALID).`
+                        `\n[ERROR] [AUTH ERROR]: Google API rejected API Key (API_KEY_INVALID).`
                     );
-                    console.error(`💡 Hướng dẫn chạy container với API Key đúng:`);
-                    console.error(`   👉 Cách 1 (Khuyên dùng): docker run --rm --env-file .env guardian-qa:latest`);
-                    console.error(`   👉 Cách 2: docker run --rm -e GEMINI_API_KEY="AIzaSy..." guardian-qa:latest\n`);
+                    console.error(`[GUIDE] How to run container with correct API Key:`);
+                    console.error(`   - Option 1 (Recommended): docker run --rm --env-file .env guardian-qa:latest`);
+                    console.error(`   - Option 2: docker run --rm -e GEMINI_API_KEY="AIzaSy..." guardian-qa:latest\n`);
                     throw err;
                 }
 
-                // Nếu là lỗi hết hạn mức trong ngày (Daily Quota Exceeded trên Free Tier), chuyển model ngay lập tức
+                // If daily free-tier quota is exceeded, switch model immediately without retrying
                 const isDailyQuotaExhausted =
                     errMsg.includes('per day limit exceeded') ||
                     errMsg.includes('free_tier_requests') ||
@@ -106,9 +106,9 @@ export async function callGeminiWithRetry(
 
                 if (isDailyQuotaExhausted) {
                     console.warn(
-                        `⚠️ [${modelName}] đã cạn hạn mức trong ngày (Daily Quota Exceeded). Tự động chuyển ngay sang model dự phòng...`
+                        `[WARN] [${modelName}] daily free-tier quota exceeded. Immediately falling back to next model...`
                     );
-                    break; // Không retry model này nữa, chuyển sang fallback model kế tiếp
+                    break;
                 }
 
                 const isTransient =
@@ -130,24 +130,24 @@ export async function callGeminiWithRetry(
                     if (attempt < maxRetries) {
                         const waitSec = Math.round(delay / 1000);
                         console.warn(
-                            `⏳ [${modelName}] gặp sự cố tạm thời (${err.name === 'AbortError' ? 'Timeout' : status ? `HTTP ${status}` : 'quá tải'}). Đợi ${waitSec}s rồi thử lại (${attempt}/${maxRetries})...`
+                            `[RETRY] [${modelName}] encountered transient issue (${err.name === 'AbortError' ? 'Timeout' : status ? `HTTP ${status}` : 'overloaded'}). Waiting ${waitSec}s before retrying (${attempt}/${maxRetries})...`
                         );
                         await new Promise((resolve) => setTimeout(resolve, delay));
                         delay = Math.round(delay * backoffFactor);
                     } else {
-                        console.warn(`⚠️ [${modelName}] không thành công sau ${maxRetries} lần thử.`);
+                        console.warn(`[WARN] [${modelName}] failed after ${maxRetries} attempts.`);
                     }
                 } else {
-                    console.error(`❌ [${modelName}] gặp lỗi không thể retry:`, errMsg);
+                    console.error(`[ERROR] [${modelName}] encountered unretryable error:`, errMsg);
                     break;
                 }
             }
         }
 
         if (mIdx < models.length - 1) {
-            console.log(`🔄 Tự động chuyển sang model dự phòng tiếp theo: [${models[mIdx + 1]}]...`);
+            console.log(`[FALLBACK] Automatically switching to next backup model: [${models[mIdx + 1]}]...`);
         }
     }
 
-    throw lastError || new Error('Tất cả các model Gemini trong danh sách đều không phản hồi.');
+    throw lastError || new Error('All Gemini models in fallback list failed to respond.');
 }

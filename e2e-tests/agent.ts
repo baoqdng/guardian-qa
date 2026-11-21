@@ -7,7 +7,7 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-// 1. ĐỊNH NGHĨA STRUCTURED OUTPUTS SCHEMA
+// 1. DEFINE STRUCTURED OUTPUTS SCHEMA
 interface TestStep {
     action: 'goto' | 'fill' | 'click' | 'assert_visible' | 'assert_text';
     selector?: string;
@@ -24,10 +24,10 @@ interface TestPlan {
 const testPlanSchema: Schema = {
     type: Type.OBJECT,
     properties: {
-        test_name: { type: Type.STRING, description: 'Tên bài test ngắn gọn bằng tiếng Anh' },
+        test_name: { type: Type.STRING, description: 'Short test name in English' },
         is_feasible: {
             type: Type.BOOLEAN,
-            description: 'Trả về false nếu tính năng yêu cầu KHÔNG tồn tại trên DOM trang web',
+            description: 'Return false if requested feature does NOT exist in the web DOM',
         },
         steps: {
             type: Type.ARRAY,
@@ -38,9 +38,9 @@ const testPlanSchema: Schema = {
                         type: Type.STRING,
                         enum: ['goto', 'fill', 'click', 'assert_visible', 'assert_text'],
                     },
-                    selector: { type: Type.STRING, description: 'Playwright selector chính xác' },
-                    value: { type: Type.STRING, description: 'URL, text nhập vào, hoặc text kỳ vọng' },
-                    reason: { type: Type.STRING, description: 'Lý do chọn bước này' },
+                    selector: { type: Type.STRING, description: 'Precise Playwright selector' },
+                    value: { type: Type.STRING, description: 'URL, text input, or expected assertion text' },
+                    reason: { type: Type.STRING, description: 'Reason for selecting this step and selector' },
                 },
                 required: ['action', 'reason'],
             },
@@ -49,9 +49,9 @@ const testPlanSchema: Schema = {
     required: ['test_name', 'is_feasible', 'steps'],
 };
 
-// 2. MẮT THẦN: Quét DOM thực tế bằng Playwright
+// 2. DOM EXTRACTOR: Scrape live DOM with Playwright
 async function getCleanDom(url: string): Promise<string> {
-    console.log(`🔍 Đang quét DOM từ: ${url} ...`);
+    console.log(`[SCAN] Scanning DOM from: ${url} ...`);
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'networkidle' });
@@ -85,7 +85,7 @@ async function getCleanDom(url: string): Promise<string> {
     return JSON.stringify(elements, null, 2);
 }
 
-// Hàm gọi API có tự động Retry + Fallback model khi server 503 quá tải
+// API caller with automatic Retry + Fallback models on 503/429
 async function generateWithFallback(ai: GoogleGenAI, prompt: string, systemInstruction: string) {
     const models = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash'];
 
@@ -104,38 +104,38 @@ async function generateWithFallback(ai: GoogleGenAI, prompt: string, systemInstr
                 });
             } catch (err: any) {
                 if (err.status === 503 || err.status === 429) {
-                    console.log(`⏳ [${modelName}] đang quá tải (${err.status}). Đợi ${attempt * 2}s rồi thử lại lần ${attempt}/3...`);
+                    console.log(`[RETRY] [${modelName}] overloaded (${err.status}). Waiting ${attempt * 2}s before attempt ${attempt}/3...`);
                     await new Promise((res) => setTimeout(res, attempt * 2000));
                 } else {
                     throw err;
                 }
             }
         }
-        console.log(`🔄 Chuyển sang model dự phòng tiếp theo...`);
+        console.log(`[FALLBACK] Switching to next fallback model...`);
     }
-    throw new Error('Tất cả các model đều đang quá tải, vui lòng thử lại sau ít phút.');
+    throw new Error('All models are currently overloaded. Please try again later.');
 }
 
-// 3. BỘ NÃO AI: Sinh TestPlan qua Gemini Structured Outputs
+// 3. AI PLANNER: Generate TestPlan via Gemini Structured Outputs
 async function generateTestPlan(url: string, userPrompt: string): Promise<TestPlan> {
     const domContext = await getCleanDom(url);
     const ai = new GoogleGenAI();
 
-    const systemInstruction = `Bạn là một Senior SDET & AI Quality Engineer.
-Nhiệm vụ: Đọc DOM thực tế của trang web và tạo kế hoạch kiểm thử Playwright.
-QUY TẮC BẮT BUỘC:
-1. Chỉ dùng selector CÓ THẬT trong DOM (ưu tiên [data-test="..."] hoặc #id).
-2. Nếu tính năng người dùng yêu cầu không tồn tại trên trang web, đặt is_feasible = false.
-3. Với trang SPA như SauceDemo, sau khi bấm Login trang sẽ chuyển sang màn hình sản phẩm ([data-test="title"] chứa chữ "Products"). Hãy thêm bước assert ở cuối.`;
+    const systemInstruction = `You are a Senior SDET & AI Quality Engineer.
+Task: Read the live DOM elements of the website and generate an executable Playwright test plan.
+MANDATORY RULES:
+1. Only use REAL selectors present in the DOM (prioritize [data-test="..."] or #id).
+2. If the user-requested feature does not exist on the page, set is_feasible = false.
+3. For Single Page Applications (like SauceDemo), clicking Login transitions to the products page ([data-test="title"] contains "Products"). Add an assertion step at the end.`;
 
-    console.log('🧠 AI đang suy luận và thiết kế kịch bản test...');
+    console.log('[AI] AI is reasoning and designing the test scenario...');
     const prompt = `Target URL: ${url}\nUser Requirement: ${userPrompt}\n\nReal DOM Elements:\n${domContext}`;
 
     const response = await generateWithFallback(ai, prompt, systemInstruction);
     return JSON.parse(response.text!) as TestPlan;
 }
 
-// 4. TRÌNH BIÊN DỊCH: Xuất ra file .spec.ts
+// 4. COMPILER: Export to .spec.ts TypeScript file
 function compileToTypeScript(plan: TestPlan, outputPath: string) {
     const esc = (s?: string) => (s ? s.replace(/'/g, "\\'") : '');
 
@@ -162,33 +162,33 @@ function compileToTypeScript(plan: TestPlan, outputPath: string) {
 
     lines.push('});', '');
     fs.writeFileSync(outputPath, lines.join('\n'), 'utf-8');
-    console.log(`📝 Đã xuất file test TypeScript tại: ${outputPath}`);
+    console.log(`[SAVED] Exported TypeScript test file to: ${outputPath}`);
 }
 
-// 5. CHẠY LUỒNG CHÍNH
+// 5. MAIN EXECUTION
 async function main() {
     const TARGET_URL = 'https://www.saucedemo.com/';
     const REQUIREMENT =
-        'Đăng nhập bằng tài khoản standard_user, mật khẩu secret_sauce, sau đó kiểm tra xem có chuyển sang trang sản phẩm không.';
+        'Log in with standard_user, password secret_sauce, then verify navigation to the products page.';
 
     const plan = await generateTestPlan(TARGET_URL, REQUIREMENT);
 
     if (!plan.is_feasible) {
-        console.log('⚠️ Cảnh báo: AI phát hiện yêu cầu không khả thi trên trang web này!');
+        console.log('[WARN] Warning: AI detected requirement is not feasible on this web page!');
         return;
     }
 
     const tsFile = path.join(__dirname, 'tests', 'ai_generated.spec.ts');
     compileToTypeScript(plan, tsFile);
 
-    console.log('🚀 Đang kích hoạt Playwright để chạy bài test AI vừa viết...');
+    console.log('[RUN] Launching Playwright to execute the generated test...');
     try {
         const output = execSync('npx playwright test tests/ai_generated.spec.ts', {
             encoding: 'utf-8',
         });
         console.log(output);
     } catch (err: any) {
-        console.error('❌ Test thất bại:\n', err.stdout || err.message);
+        console.error('[FAIL] Test failed:\n', err.stdout || err.message);
     }
 }
 

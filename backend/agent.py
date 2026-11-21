@@ -10,43 +10,43 @@ from playwright.sync_api import sync_playwright
 
 load_dotenv()
 
-# 1. ĐỊNH NGHĨA STRUCTURED OUTPUTS (Ép AI trả về đúng format, không nói lan man)
+# 1. DEFINE STRUCTURED OUTPUTS SCHEMA (Pydantic models)
 class TestStep(BaseModel):
     action: Literal["goto", "fill", "click", "assert_visible", "assert_text"] = Field(
-        description="Hành động cần thực hiện trên trình duyệt"
+        description="Action to perform in the browser"
     )
     selector: Optional[str] = Field(
         default=None,
-        description="Playwright selector chính xác (ưu tiên [data-test=\"...\"], #id, hoặc role=...)"
+        description="Precise Playwright selector (prefer [data-test=\"...\"], #id, or role=...)"
     )
     value: Optional[str] = Field(
         default=None,
-        description="URL (nếu là goto), text cần nhập (nếu là fill), hoặc text kỳ vọng (nếu là assert_text)"
+        description="URL (for goto), input text (for fill), or expected text (for assert_text)"
     )
-    reason: str = Field(description="Giải thích ngắn gọn lý do chọn bước và selector này")
+    reason: str = Field(description="Concise reason for selecting this step and selector")
 
 class TestPlan(BaseModel):
-    test_name: str = Field(description="Tên bài test bằng tiếng Anh ngắn gọn")
+    test_name: str = Field(description="Short test name in English")
     is_feasible: bool = Field(
-        description="Trả về False nếu yêu cầu test tính năng KHÔNG tồn tại trên DOM trang web"
+        description="Return False if requested test feature does NOT exist on the web page DOM"
     )
-    steps: list[TestStep] = Field(description="Danh sách tuần tự các bước kiểm thử")
+    steps: list[TestStep] = Field(description="Sequential list of test steps")
 
 
-# 2. MẮT THẦN: Lấy cấu trúc DOM thực tế của trang web để chống AI bịa selector
+# 2. DOM EXTRACTOR: Scrape live DOM with Playwright
 def get_clean_dom(url: str) -> str:
-    print(f"🔍 Đang quét DOM từ: {url} ...")
+    print(f"[SCAN] Scanning DOM from: {url} ...")
     with sync_playwright() as p:
         try:
             browser = p.chromium.launch(headless=True)
         except Exception:
-            # Fallback dùng Edge có sẵn trên Windows nếu bị chính sách máy chặn tải Chromium
+            # Fallback to Edge on Windows if chromium download is blocked
             browser = p.chromium.launch(headless=True, channel="msedge")
             
         page = browser.new_page()
         page.goto(url, wait_until="networkidle")
         
-        # Trích xuất các thẻ tương tác quan trọng (đã sửa results.push chuẩn JS)
+        # Extract interactive elements
         elements = page.evaluate("""() => {
             const tags = ['input', 'button', 'a', 'select', 'h1', 'h2', 'span', 'div'];
             const results = [];
@@ -73,19 +73,19 @@ def get_clean_dom(url: str) -> str:
         return str(elements)
 
 
-# 3. BỘ NÃO AI: Phân tích DOM + Yêu cầu -> Sinh TestPlan
+# 3. AI PLANNER: Analyze DOM + Requirements -> Generate TestPlan
 def generate_test_plan(url: str, user_prompt: str) -> TestPlan:
     dom_context = get_clean_dom(url)
     client = genai.Client()
 
     system_instruction = (
-        "Bạn là một Senior SDET & AI Quality Engineer. "
-        "Nhiệm vụ của bạn là đọc danh sách các phần tử DOM thực tế của trang web và tạo kế hoạch kiểm thử Playwright. "
-        "QUY TẮC BẮT BUỘC:\n"
-        "1. Chỉ sử dụng các selector CÓ THẬT trong DOM được cung cấp (ưu tiên `[data-test=\"...\"]` hoặc `#id`).\n"
-        "2. Không bao giờ bịa đặt selector. Nếu tính năng người dùng yêu cầu không có trên trang web, đặt `is_feasible = False`.\n"
-        "3. Lưu ý quan trọng: Với các trang Single Page App (như SauceDemo), sau khi bấm nút Login trang mới chuyển sang màn hình tiếp theo. "
-        "Nếu bước verify nằm ở trang sau (ví dụ `.inventory_list` hoặc `[data-test=\"title\"]`), hãy suy luận hợp lý dựa trên standard Playwright web structure."
+        "You are a Senior SDET & AI Quality Engineer. "
+        "Task: Read the provided list of real DOM elements and generate an executable Playwright test plan. "
+        "MANDATORY RULES:\n"
+        "1. Only use REAL selectors present in the provided DOM (prioritize `[data-test=\"...\"]` or `#id`).\n"
+        "2. Never invent selectors. If the requested feature does not exist on the page, set `is_feasible = False`.\n"
+        "3. Important: For Single Page Apps (such as SauceDemo), clicking Login transitions to the next screen. "
+        "If a verification step is on the next page (e.g. `.inventory_list` or `[data-test=\"title\"]`), reason reasonably based on standard Playwright web structures."
     )
 
     prompt = f"""
@@ -96,7 +96,7 @@ def generate_test_plan(url: str, user_prompt: str) -> TestPlan:
     {dom_context}
     """
 
-    print("🧠 AI đang suy luận và thiết kế kịch bản test...")
+    print("[AI] AI is reasoning and designing test plan...")
     response = client.models.generate_content(
         model="gemini-3.5-flash",
         contents=prompt,
@@ -110,7 +110,7 @@ def generate_test_plan(url: str, user_prompt: str) -> TestPlan:
     return response.parsed
 
 
-# 4. TRÌNH BIÊN DỊCH: Chuyển TestPlan (JSON) thành code Playwright TypeScript (.spec.ts)
+# 4. COMPILER: Convert TestPlan (JSON) into Playwright TypeScript (.spec.ts)
 def compile_to_typescript(plan: TestPlan, output_path: Path):
     def esc(s: Optional[str]) -> str:
         return s.replace("'", "\\'") if s else ""
@@ -138,22 +138,22 @@ def compile_to_typescript(plan: TestPlan, output_path: Path):
     lines.append("")
 
     output_path.write_text("\n".join(lines), encoding="utf-8")
-    print(f"📝 Đã xuất file test TypeScript tại: {output_path}")
+    print(f"[SAVED] Exported TypeScript test file to: {output_path}")
 
 
 if __name__ == "__main__":
     TARGET_URL = "https://www.saucedemo.com/"
-    REQUIREMENT = "Đăng nhập bằng tài khoản standard_user, mật khẩu secret_sauce, sau đó kiểm tra xem có chuyển sang trang sản phẩm không."
+    REQUIREMENT = "Log in with standard_user, password secret_sauce, then verify navigation to the products page."
 
     plan = generate_test_plan(TARGET_URL, REQUIREMENT)
     
     if not plan.is_feasible:
-        print("⚠️ Cảnh báo: AI phát hiện yêu cầu không khả thi trên trang web này!")
+        print("[WARN] Warning: AI detected requirement is not feasible on this web page!")
     else:
         ts_file = Path(__file__).resolve().parent.parent / "e2e-tests" / "tests" / "ai_generated.spec.ts"
         compile_to_typescript(plan, ts_file)
 
-        print("🚀 Đang kích hoạt Playwright TypeScript để chạy bài test AI vừa viết...")
+        print("[RUN] Executing generated Playwright TypeScript test...")
         result = subprocess.run(
             ["npx.cmd", "playwright", "test", "tests/ai_generated.spec.ts"],
             cwd=ts_file.parent.parent,
@@ -163,4 +163,4 @@ if __name__ == "__main__":
         )
         print(result.stdout)
         if result.returncode != 0:
-            print("❌ Lỗi khi chạy test:\n", result.stderr)
+            print("[FAIL] Test run failed:\n", result.stderr)
