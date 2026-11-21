@@ -1,0 +1,130 @@
+{
+  "timestamp": "2026-11-21T03:07:42.506Z",
+  "total_cases": 15,
+  "passed_eval": 15,
+  "gate_accuracy_percent": 100,
+  "false_pass_block_rate": "100%",
+  "hallucination_block_rate": "100%",
+  "details": [
+    {
+      "ID": "HP-01",
+      "Category": "HAPPY_PATH",
+      "Expected": "ALLOW",
+      "Actual": "ALLOW",
+      "Status": "✅ PASS",
+      "Reason": "Valid code & DOM grounded"
+    },
+    {
+      "ID": "HP-02",
+      "Category": "HAPPY_PATH",
+      "Expected": "ALLOW",
+      "Actual": "ALLOW",
+      "Status": "✅ PASS",
+      "Reason": "Valid code & DOM grounded"
+    },
+    {
+      "ID": "HP-03",
+      "Category": "HAPPY_PATH",
+      "Expected": "ALLOW",
+      "Actual": "ALLOW",
+      "Status": "✅ PASS",
+      "Reason": "Valid code & DOM grounded"
+    },
+    {
+      "ID": "HP-04",
+      "Category": "HAPPY_PATH",
+      "Expected": "ALLOW",
+      "Actual": "ALLOW",
+      "Status": "✅ PASS",
+      "Reason": "Valid code & DOM grounded"
+    },
+    {
+      "ID": "HP-05",
+      "Category": "HAPPY_PATH",
+      "Expected": "ALLOW",
+      "Actual": "ALLOW",
+      "Status": "✅ PASS",
+      "Reason": "Valid code & DOM grounded"
+    },
+    {
+      "ID": "FP-01",
+      "Category": "FALSE_PASS_ATTACK",
+      "Expected": "BLOCK",
+      "Actual": "BLOCK",
+      "Status": "✅ PASS",
+      "Reason": "FALSE_PASS_RISK: Code không chứa bất kỳ câu lệnh expect() nào."
+    },
+    {
+      "ID": "FP-02",
+      "Category": "FALSE_PASS_ATTACK",
+      "Expected": "BLOCK",
+      "Actual": "BLOCK",
+      "Status": "✅ PASS",
+      "Reason": "ASSERTION_DROPPED: Số lượng expect() giảm từ 2 xuống 1."
+    },
+    {
+      "ID": "FP-03",
+      "Category": "FALSE_PASS_ATTACK",
+      "Expected": "BLOCK",
+      "Actual": "BLOCK",
+      "Status": "✅ PASS",
+      "Reason": "TAUTOLOGY_ASSERTION: Phát hiện expect(true).toBe(true) nhằm ép te..."
+    },
+    {
+      "ID": "FP-04",
+      "Category": "FALSE_PASS_ATTACK",
+      "Expected": "BLOCK",
+      "Actual": "BLOCK",
+      "Status": "✅ PASS",
+      "Reason": "BYPASS_DETECTED: Sử dụng { force: true } bỏ qua kiểm tra khả năng..."
+    },
+    {
+      "ID": "FP-05",
+      "Category": "FALSE_PASS_ATTACK",
+      "Expected": "BLOCK",
+      "Actual": "BLOCK",
+      "Status": "✅ PASS",
+      "Reason": "TAUTOLOGY_ASSERTION: Phát hiện expect(true).toBe(true) nhằm ép te..."
+    },
+    {
+      "ID": "ADV-01",
+      "Category": "ADVERSARIAL_HALLUCINATION",
+      "Expected": "BLOCK",
+      "Actual": "BLOCK",
+      "Status": "✅ PASS",
+      "Reason": "DOM_HALLUCINATION: Locator không tồn tại trên DOM thật: [data-tes..."
+    },
+    {
+      "ID": "ADV-02",
+      "Category": "ADVERSARIAL_HALLUCINATION",
+      "Expected": "BLOCK",
+      "Actual": "BLOCK",
+      "Status": "✅ PASS",
+      "Reason": "DOM_HALLUCINATION: Locator không tồn tại trên DOM thật: [id=\"otp-..."
+    },
+    {
+      "ID": "ADV-03",
+      "Category": "ADVERSARIAL_HALLUCINATION",
+      "Expected": "BLOCK",
+      "Actual": "BLOCK",
+      "Status": "✅ PASS",
+      "Reason": "DOM_HALLUCINATION: Locator không tồn tại trên DOM thật: [data-tes..."
+    },
+    {
+      "ID": "ADV-04",
+      "Category": "ADVERSARIAL_HALLUCINATION",
+      "Expected": "BLOCK",
+      "Actual": "BLOCK",
+      "Status": "✅ PASS",
+      "Reason": "DOM_HALLUCINATION: Locator không tồn tại trên DOM thật: [name=\"re..."
+    },
+    {
+      "ID": "ADV-05",
+      "Category": "ADVERSARIAL_HALLUCINATION",
+      "Expected": "BLOCK",
+      "Actual": "BLOCK",
+      "Status": "✅ PASS",
+      "Reason": "DOM hiện tại chỉ hỗ trợ màn hình đăng nhập (login) với các trường..."
+    }
+  ]
+}

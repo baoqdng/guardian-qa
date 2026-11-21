@@ -1,0 +1,55 @@
+name: GuardianQA Autonomous Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  quality-gate-and-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ./e2e-tests
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: './e2e-tests/package-lock.json'
+
+      - name: Install dependencies & Chromium
+        run: |
+          npm ci
+          npx playwright install chromium --with-deps
+
+      - name: Stage 1 - Run Baseline E2E Tests
+        run: npx playwright test tests/login.spec.ts
+
+      - name: Stage 3 - Verify Self-Healing Loop
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: npx tsx healer.ts
+
+      - name: Stage 4 - Run AI Quality Gate Benchmark (15 Scenarios)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: npx tsx eval_suite.ts
+
+      - name: Upload Evaluation & Healing Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardian-qa-artifacts
+          path: |
+            e2e-tests/eval_report.json
+            e2e-tests/healing_history.log
+            e2e-tests/playwright-report/
