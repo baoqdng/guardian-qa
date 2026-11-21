@@ -6,7 +6,12 @@
   "directories": {
     "test": "tests"
   },
-  "scripts": {},
+  "scripts": {
+    "test": "playwright test",
+    "test:login": "playwright test tests/login.spec.ts",
+    "heal": "tsx healer.ts",
+    "eval": "tsx eval_suite.ts"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

@@ -20,8 +20,54 @@ Evaluated across **15 adversarial & functional scenarios** (5 Happy Path, 5 Fals
 | **Mean Self-Healing Latency** | **~3.2s per broken locator** |
 
 ## 🚀 Quick Start
-\`\`\`bash
+
+### 1. Local Development
+```bash
 cd e2e-tests
+
+# Install dependencies and Playwright browser
 npm install
-npx tsx eval_suite.ts
-\`\`\`
+npx playwright install chromium
+
+# Setup environment variable
+# Create a .env file with your GEMINI_API_KEY
+echo "GEMINI_API_KEY=your_gemini_api_key_here" > .env
+
+# Run baseline Playwright test
+npm run test:login
+
+# Run Self-Healing on a broken test
+npm run heal
+
+# Run 15-Scenario AI Quality Gate Benchmark
+npm run eval
+```
+
+### 2. Run with Docker
+```bash
+# Build Docker image from repo root
+docker build -t guardian-qa:latest .
+
+# Run container with environment file
+docker run --rm --env-file e2e-tests/.env guardian-qa:latest
+
+# Or run with inline API Key
+docker run --rm -e GEMINI_API_KEY="AIzaSy..." guardian-qa:latest
+```
+
+## ⚙️ GitHub Actions CI/CD Pipeline
+
+The repository includes a ready-to-run GitHub Actions workflow at [`.github/workflows/guardian-ci.yml`](.github/workflows/guardian-ci.yml).
+
+### Required Setup on GitHub:
+1. Go to your GitHub repository: **Settings** → **Secrets and variables** → **Actions**.
+2. Click **New repository secret**.
+3. Name: `GEMINI_API_KEY`
+4. Value: `<your-gemini-api-key>`
+5. Push to `main` branch or trigger manually via **Actions** → **Run workflow**.
+
+### Pipeline Stages:
+- **Stage 1 (Baseline E2E):** Validates baseline login flow (`tests/login.spec.ts`).
+- **Stage 2 (Self-Healing Loop):** Intentionally executes a broken test (`tests/broken_login.spec.ts`), captures failure trace, scrapes live DOM, synthesizes patch with Gemini, and re-runs to pass (`healer.ts`).
+- **Stage 3 (AI Quality Gate Benchmark):** Evaluates 15 adversarial and functional test cases (`eval_suite.ts`).
+- **Artifacts:** Automatically uploads `eval_report.json`, `healing_history.log`, and Playwright test reports.
